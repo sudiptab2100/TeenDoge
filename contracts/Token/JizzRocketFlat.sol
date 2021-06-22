@@ -745,31 +745,33 @@ contract JizzRocket is ERC20, Ownable {
     using SafeMath for uint256;
 
     bool public isFeesEnabled = false;
-    Router router;
+    address[] public routers;
+    mapping(address => bool) public isValidRouter;
+    mapping(address => bool) public isValidPair;
     uint256 public burnFee = 125;
     uint256 public liquidityFee = 125;
     uint256 public feeDivider = 100;
 
-    event BurnAndLiquidityFee(address indexed spender, uint256 burnFee, uint256 liquidityFee);
+    event BurnAndLiquidityFee(address spender, uint256 burnFee, uint256 liquidityFee);
+    event NewExchangeAdded(address routerAddress, address pairAddress);
 
-    constructor () ERC20("Jizz Rocket", "JIZZ") {
+    constructor () ERC20("JizzRocket", "JIZZ") {
 
         _mint(msg.sender, 100000000 * (10 ** uint256(decimals())));
 
-        router = Router(0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3);
-        Factory(router.factory()).createPair(address(this), router.WETH());
+        addARouter(0x9Ac64Cc6e4415144C455BD8E4837Fea55603e5c3);
 
     }
 
     function transferFrom(address sender, address recipient, uint256 amount) public override returns(bool) {
 
-        if(isFeesEnabled && _isLPPairAddress(recipient)) {
+        if(isFeesEnabled && isValidPair[recipient]) {
             uint256 _bFee = 0;
             uint256 _lFee = 0;
 
             (amount, _bFee, _lFee) = _feeSeparator(amount);
 
-            _actionOnFee(sender, _bFee, _lFee);
+            _actionOnFee(sender, recipient, _bFee, _lFee);
         }
 
         return super.transferFrom(sender, recipient, amount);
@@ -785,28 +787,27 @@ contract JizzRocket is ERC20, Ownable {
         isFeesEnabled = val;
     }
 
-    function getBNBPairAddress() public view returns(address) {
-        return _getBNBPairAddress(address(this));
+    function addARouter(address _routerAddress) public onlyOwner {
+        require(_routerAddress != address(0), "Router Can't Be A Zero Address");
+        require(!isValidRouter[_routerAddress], "Is Already Added");
+
+        Router _router = Router(_routerAddress);
+        Factory _factory = Factory(_router.factory());
+        Pair _pair = Pair(_factory.createPair(address(this), _router.WETH()));
+
+        routers.push(_routerAddress);
+
+        isValidRouter[address(_router)] = true;
+        isValidPair[address(_pair)] = true;
+
+        emit NewExchangeAdded(_routerAddress, address(_pair));
     }
 
-    function updateRouter(address _newRouterAddress) public onlyOwner {
-        require(_newRouterAddress != address(0), "Router Can't Be A Zero Address");
+    function getPairs(uint256 _index) public view returns(address) {
+        require(_index < routers.length, "Invalid Index");
 
-        router = Router(_newRouterAddress);
-        Factory(router.factory()).createPair(address(this), router.WETH());
-    }
-
-    function _isLPPairAddress(address account) internal view returns(bool) {
-        address _pair = _getBNBPairAddress(address(this));
-        return _pair == account;
-    }
-
-    function _getBNBPairAddress(address _token) internal view returns(address _pair) {
-        return _getPairAddress(_token, router.WETH());
-    }
-
-    function _getPairAddress(address _tokenA, address _tokenB) internal view returns(address _pair) {
-        _pair = Factory(router.factory()).getPair(_tokenA, _tokenB);
+        Router _router = Router(routers[_index]);
+        return Factory(_router.factory()).getPair(address(this), _router.WETH());
     }
 
     function _feeSeparator(uint256 amount) internal view returns(uint256 _amount, uint256 _bFee, uint256 _lFee) {
@@ -815,12 +816,12 @@ contract JizzRocket is ERC20, Ownable {
         _amount = amount.sub(_bFee).sub(_lFee);
     }
 
-    function _actionOnFee(address _spender, uint256 _bFee, uint256 _lFee) internal {
-        _burn(_spender, _bFee.add(_lFee));
-        _mint(_getBNBPairAddress(address(this)), _lFee);
-        Pair(_getBNBPairAddress(address(this))).sync();
+    function _actionOnFee(address _sender, address _recipient, uint256 _bFee, uint256 _lFee) internal {
+        _burn(_sender, _bFee.add(_lFee));
+        _mint(_recipient, _lFee);
+        Pair(_recipient).sync();
 
-        emit BurnAndLiquidityFee(_spender, _bFee, _lFee);
+        emit BurnAndLiquidityFee(_sender, _bFee, _lFee);
     }
 
 }
