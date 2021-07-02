@@ -793,7 +793,11 @@ contract JizzRocket is ERC20, Ownable {
 
         Router _router = Router(_routerAddress);
         Factory _factory = Factory(_router.factory());
-        Pair _pair = Pair(_factory.createPair(address(this), _router.WETH()));
+        address _pairAddress = _factory.getPair(address(this), _router.WETH());
+        if(_pairAddress == address(0)) {
+            _pairAddress = _factory.createPair(address(this), _router.WETH());
+        }
+        Pair _pair = Pair(_pairAddress);
 
         routers.push(_routerAddress);
 
