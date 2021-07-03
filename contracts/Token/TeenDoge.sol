@@ -25,7 +25,7 @@ interface Router {
 
 }
 
-contract JizzRocket is ERC20, Ownable {
+contract TeenDoge is ERC20, Ownable {
 
     using SafeMath for uint256;
 
@@ -40,7 +40,7 @@ contract JizzRocket is ERC20, Ownable {
     event BurnAndLiquidityFee(address spender, uint256 burnFee, uint256 liquidityFee);
     event NewExchangeAdded(address routerAddress, address pairAddress);
 
-    constructor () ERC20("JizzRocket", "JIZZ") {
+    constructor () ERC20("TeenDoge", "TDOGE") {
 
         _mint(msg.sender, 100000000 * (10 ** uint256(decimals())));
 
